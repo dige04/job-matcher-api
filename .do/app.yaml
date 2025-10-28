@@ -1,0 +1,23 @@
+name: job-matcher-api
+services:
+- name: api
+  source_dir: /
+  github:
+    repo: dige04/job-matcher-api
+    branch: main
+  run_command: gunicorn app:app
+  environment_slug: python-3
+  instance_count: 1
+  instance_size_slug: basic-xxs
+  env:
+  - key: PORT
+    value: 8080
+  http_port: 8080
+  routes:
+  - path: /
+  health_check:
+    http_path: /health
+    initial_delay_seconds: 60
+    timeout_seconds: 5
+    success_threshold: 1
+    failure_threshold: 5
