@@ -12,18 +12,24 @@ app = Flask(__name__)
 # Get the port from environment variable (DigitalOcean sets PORT to 8080)
 port = int(os.environ.get('PORT', 8080))
 
-# Configure CORS - allow your Vercel frontend
+# Configure CORS for Lovable and local development
 cors_origins = [
-    "https://job-matcher-app-dusky.vercel.app",
+    "https://app.lovable.dev",  # Lovable development
+    "https://app.lovable.co",   # Lovable production
+    "https://*.lovable.dev",    # Lovable subdomains
+    "https://*.lovable.co",     # Lovable subdomains
+    "https://job-matcher-app-dusky.vercel.app",  # Existing Vercel frontend
     "http://localhost:3000",
-    "https://localhost:3000"
+    "https://localhost:3000",
+    "https://127.0.0.1:3000",
+    "http://127.0.0.1:3000"
 ]
 
 # Allow dynamic origins based on environment
 if os.getenv('ALLOWED_ORIGINS'):
     cors_origins.extend(os.getenv('ALLOWED_ORIGINS').split(','))
 
-CORS(app, origins=cors_origins)
+CORS(app, origins=cors_origins, supports_credentials=True)
 
 @app.route('/health', methods=['GET'])
 def health_check():
@@ -33,7 +39,8 @@ def health_check():
         "service": "Job Matcher API",
         "version": "1.0.0",
         "message": "Backend is running successfully on DigitalOcean",
-        "port": port
+        "port": port,
+        "provider": "DigitalOcean App Platform"
     })
 
 @app.route('/', methods=['GET'])
@@ -46,7 +53,8 @@ def root():
         "endpoints": {
             "health": "/health",
             "predict": "/predict (POST)",
-            "docs": "API accepts resume_text, job_title, description, requirements, benefits"
+            "docs": "/docs (POST - for OpenAPI specification)",
+            "api_info": "API accepts resume_text, job_title, description, requirements, benefits"
         }
     })
 
@@ -62,7 +70,9 @@ def predict():
 
         if missing:
             return jsonify({
-                "error": f"Missing required fields: {', '.join(missing)}"
+                "error": f"Missing required fields: {', '.join(missing)}",
+                "status": "error",
+                "code": 400
             }), 400
 
         resume_text = data.get('resume_text', '')
@@ -76,7 +86,8 @@ def predict():
                       'aws', 'azure', 'gcp', 'mongodb', 'postgresql', 'mysql', 'tensorflow',
                       'pytorch', 'machine learning', 'ml', 'ai', 'devops', 'git', 'ci/cd', 'typescript',
                       'vue', 'angular', 'flask', 'django', 'fastapi', 'rest api', 'graphql',
-                      'sql', 'nosql', 'redis', 'elasticsearch', 'kafka', 'microservices']
+                      'sql', 'nosql', 'redis', 'elasticsearch', 'kafka', 'microservices',
+                      'gitlab', 'bitbucket', 'jira', 'confluence', 'trello', 'slack', 'discord']
 
         found_skills = []
         for skill in tech_skills:
@@ -167,6 +178,7 @@ def predict():
             parsed_resume["certifications"].append("Google Cloud Certified")
 
         response = {
+            "status": "success",
             "predicted_salary": salary_range,
             "match_score": round(match_score, 2),
             "match_percentage": f"{int(match_score * 100)}%",
@@ -187,13 +199,170 @@ def predict():
             "note": "This is an enhanced mock prediction with intelligent parsing. The actual PhoBERT model will provide more accurate analysis."
         }
 
-        return jsonify(response)
+        return jsonify(response), 200
 
     except Exception as e:
         app.logger.error(f"Error in predict: {str(e)}")
         return jsonify({
-            "error": f"Internal server error: {str(e)}"
+            "status": "error",
+            "error": f"Internal server error: {str(e)}",
+            "code": 500
         }), 500
+
+@app.route('/docs', methods=['GET'])
+def openapi_docs():
+    """OpenAPI/Swagger documentation for Lovable"""
+    return jsonify({
+        "openapi": "3.0.0",
+        "info": {
+            "title": "Job Matcher API",
+            "description": "API for matching resumes with job postings using AI analysis",
+            "version": "1.0.0",
+            "contact": {
+                "name": "API Support",
+                "email": "support@jobmatcher.com"
+            }
+        },
+        "servers": [
+            {
+                "url": "https://your-job-matcher-api.ondigitalocean.app",
+                "description": "Production server on DigitalOcean"
+            },
+            {
+                "url": "http://localhost:8080",
+                "description": "Development server"
+            }
+        ],
+        "paths": {
+            "/health": {
+                "get": {
+                    "summary": "Health check endpoint",
+                    "description": "Check if the API is running",
+                    "responses": {
+                        "200": {
+                            "description": "Successful response",
+                            "content": {
+                                "application/json": {
+                                    "schema": {
+                                        "type": "object",
+                                        "properties": {
+                                            "status": {"type": "string"},
+                                            "service": {"type": "string"},
+                                            "version": {"type": "string"}
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "/predict": {
+                "post": {
+                    "summary": "Analyze resume-job match",
+                    "description": "Analyze a resume against a job posting to predict salary and match score",
+                    "requestBody": {
+                        "required": True,
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "required": ["resume_text", "job_title", "description"],
+                                    "properties": {
+                                        "resume_text": {
+                                            "type": "string",
+                                            "description": "Complete resume text"
+                                        },
+                                        "job_title": {
+                                            "type": "string",
+                                            "description": "Job title"
+                                        },
+                                        "description": {
+                                            "type": "string",
+                                            "description": "Job description"
+                                        },
+                                        "requirements": {
+                                            "type": "string",
+                                            "description": "Job requirements (optional)"
+                                        },
+                                        "benefits": {
+                                            "type": "string",
+                                            "description": "Job benefits (optional)"
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    "responses": {
+                        "200": {
+                            "description": "Successful analysis",
+                            "content": {
+                                "application/json": {
+                                    "schema": {
+                                        "type": "object",
+                                        "properties": {
+                                            "status": {"type": "string"},
+                                            "predicted_salary": {"type": "string"},
+                                            "match_score": {"type": "number"},
+                                            "match_percentage": {"type": "string"},
+                                            "missing_skills": {
+                                                "type": "array",
+                                                "items": {"type": "string"}
+                                            },
+                                            "found_skills": {
+                                                "type": "array",
+                                                "items": {"type": "string"}
+                                            },
+                                            "parsed_resume": {
+                                                "type": "object"
+                                            },
+                                            "analysis": {
+                                                "type": "object"
+                                            },
+                                            "job_analysis": {
+                                                "type": "object"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "400": {
+                            "description": "Bad request - missing required fields",
+                            "content": {
+                                "application/json": {
+                                    "schema": {
+                                        "type": "object",
+                                        "properties": {
+                                            "error": {"type": "string"},
+                                            "status": {"type": "string"},
+                                            "code": {"type": "integer"}
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "500": {
+                            "description": "Internal server error",
+                            "content": {
+                                "application/json": {
+                                    "schema": {
+                                        "type": "object",
+                                        "properties": {
+                                            "error": {"type": "string"},
+                                            "status": {"type": "string"},
+                                            "code": {"type": "integer"}
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    })
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=port, debug=False)
